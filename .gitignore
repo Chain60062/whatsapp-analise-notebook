@@ -1,0 +1,16 @@
+# Ambiente
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Conversas reais: nunca versionar (só o exemplo anonimizado)
+dados/*.txt
+!dados/exemplo_anonimizado.txt
+*.zip
+chat.txt
+chat.md
+
+# Exportações geradas pelo notebook
+*.csv
