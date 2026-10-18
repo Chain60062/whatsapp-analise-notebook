@@ -49,14 +49,14 @@ pip install -r requirements-dev.txt
 jupyter lab
 ```
 
-Abra [`analise_whatsapp.ipynb`](analise_whatsapp.ipynb) e use **Run → Run All Cells**. O notebook lê `dados/chat.txt`, a conversa exportada do grupo. Esse arquivo não está no repositório: coloque a sua exportação nesse caminho ou troque a variável `CAMINHO` para [`dados/chat_exemplo.txt`](dados/chat_exemplo.txt), uma conversa fictícia de cerca de 1000 mensagens no mesmo formato (exportação do iPhone), com nomes inventados e números de telefone com DDD 00, que não existe. Para analisar outra conversa:
+Abra [`analise_whatsapp.ipynb`](analise_whatsapp.ipynb) e use **Run → Run All Cells**. Por padrão o notebook lê [`dados/chat_exemplo.txt`](dados/chat_exemplo.txt), uma conversa fictícia de cerca de 1000 mensagens no mesmo formato da exportação do iPhone, com nomes inventados e números de telefone com DDD 00, que não existe. Para analisar outra conversa:
 
 - clique em **Carregar .txt** (seção 1) e escolha o arquivo: todas as seções são atualizadas; ou
-- troque a variável `CAMINHO` e rode tudo de novo.
+- coloque a exportação em `dados/` (por exemplo `dados/chat.txt`, que o `.gitignore` não deixa versionar), troque a variável `CAMINHO` e rode tudo de novo.
 
 O remetente do histórico (seção 5) e do gráfico do histórico (seção 6) e o agrupamento do gráfico de linhas (seção 8) são escolhidos em listas, sem alterar código.
 
-O notebook está salvo **com as saídas**, então dá para ver os resultados no GitHub sem executar nada (com a opção padrão de cada lista). As listas e o painel interativo (ipywidgets) só funcionam com um kernel rodando.
+O notebook está salvo **com as saídas** da conversa fictícia, então dá para ver os resultados no GitHub sem executar nada (com a opção padrão de cada lista). As listas e o painel interativo (ipywidgets) só funcionam com um kernel rodando.
 
 Os gráficos usam o seaborn com um tema escuro próprio (fundo grafite e 10 cores claras, uma por remetente). O gráfico de pizza é feito com o matplotlib, porque o seaborn não tem pizza, mas usa o mesmo tema e as mesmas cores. Nele, os remetentes com menos mensagens (somando até 10 % do total) ficam juntos numa fatia "Outros"; a legenda continua mostrando o percentual exato de cada remetente. As tabelas seguem o tema do JupyterLab: para deixar tudo escuro, use **Settings → Theme → JupyterLab Dark**.
 
