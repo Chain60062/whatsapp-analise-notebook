@@ -49,7 +49,7 @@ pip install -r requirements-dev.txt
 jupyter lab
 ```
 
-Abra [`analise_whatsapp.ipynb`](analise_whatsapp.ipynb) e use **Run → Run All Cells**. O notebook lê `dados/chat.txt`, a conversa exportada do grupo. Esse arquivo não está no repositório: coloque a sua exportação nesse caminho ou troque a variável `CAMINHO`. Para analisar outra conversa:
+Abra [`analise_whatsapp.ipynb`](analise_whatsapp.ipynb) e use **Run → Run All Cells**. O notebook lê `dados/chat.txt`, a conversa exportada do grupo. Esse arquivo não está no repositório: coloque a sua exportação nesse caminho ou troque a variável `CAMINHO` para [`dados/chat_exemplo.txt`](dados/chat_exemplo.txt), uma conversa fictícia de cerca de 1000 mensagens no mesmo formato (exportação do iPhone), com nomes inventados e números de telefone com DDD 00, que não existe. Para analisar outra conversa:
 
 - clique em **Carregar .txt** (seção 1) e escolha o arquivo: todas as seções são atualizadas; ou
 - troque a variável `CAMINHO` e rode tudo de novo.

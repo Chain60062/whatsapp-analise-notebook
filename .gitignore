@@ -5,8 +5,9 @@ __pycache__/
 .pytest_cache/
 .ipynb_checkpoints/
 
-# Conversas reais: nunca versionar
+# Conversas reais: nunca versionar (o chat_exemplo.txt é fictício)
 dados/*.txt
+!dados/chat_exemplo.txt
 *.zip
 chat.txt
 chat.md
