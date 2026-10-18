@@ -58,7 +58,7 @@ O remetente do histórico (seção 5) e do gráfico do histórico (seção 6) e 
 
 O notebook está salvo **com as saídas**, então dá para ver os resultados no GitHub sem executar nada (com a opção padrão de cada lista). As listas e o painel interativo (ipywidgets) só funcionam com um kernel rodando.
 
-Os gráficos usam o seaborn com um tema escuro próprio (fundo grafite e 10 cores claras, uma por remetente). O gráfico de pizza é feito com o matplotlib, porque o seaborn não tem pizza, mas usa o mesmo tema e as mesmas cores. As tabelas seguem o tema do JupyterLab: para deixar tudo escuro, use **Settings → Theme → JupyterLab Dark**.
+Os gráficos usam o seaborn com um tema escuro próprio (fundo grafite e 10 cores claras, uma por remetente). O gráfico de pizza é feito com o matplotlib, porque o seaborn não tem pizza, mas usa o mesmo tema e as mesmas cores. Nele, os remetentes com menos mensagens (somando até 10 % do total) ficam juntos numa fatia "Outros"; a legenda continua mostrando o percentual exato de cada remetente. As tabelas seguem o tema do JupyterLab: para deixar tudo escuro, use **Settings → Theme → JupyterLab Dark**.
 
 Para rodar os testes:
 

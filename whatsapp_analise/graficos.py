@@ -7,6 +7,7 @@ import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+from matplotlib.patches import Patch
 
 from .analises import FREQUENCIAS, listar_remetentes, mensagens_por_periodo
 
@@ -34,6 +35,11 @@ CORES = [
     "#DADDE3",  # cinza-claro
     "#86B83A",  # verde-limão
 ]
+
+# Gráfico de pizza: os menores remetentes, somando até este percentual,
+# viram uma fatia "Outros" (cinza-médio, diferente de todas as cores acima).
+LIMITE_OUTROS = 10
+COR_OUTROS = "#8B909A"
 
 sns.set_theme(
     style="darkgrid",
@@ -133,13 +139,35 @@ def grafico_pizza(df):
     """R7 - percentual de mensagens de cada remetente.
 
     O seaborn não tem gráfico de pizza, então este usa o matplotlib com o
-    mesmo tema e as mesmas cores dos outros gráficos.
+    mesmo tema e as mesmas cores dos outros gráficos. Os menores remetentes
+    viram uma fatia "Outros", mas a legenda mostra o percentual de cada um.
     """
     cores = cores_dos_remetentes(df)
     contagem = df["remetente"].value_counts()
     remetentes = listar_remetentes(df)
     contagem = contagem[remetentes]  # do maior para o menor
     total = contagem.sum()
+
+    # Junta os menores remetentes numa fatia "Outros", começando pelo menor,
+    # enquanto a soma deles não passar de LIMITE_OUTROS %.
+    agrupados = []
+    soma = 0
+    for nome in reversed(remetentes):
+        percentual = contagem[nome] / total * 100
+        if soma + percentual > LIMITE_OUTROS:
+            break
+        agrupados.append(nome)
+        soma += percentual
+    if len(agrupados) < 2:
+        agrupados = []  # não vale a pena agrupar um remetente só
+    agrupados.reverse()  # volta para a ordem do maior para o menor
+
+    principais = [nome for nome in remetentes if nome not in agrupados]
+    valores = [contagem[nome] for nome in principais]
+    cores_das_fatias = [cores[nome] for nome in principais]
+    if agrupados:
+        valores.append(contagem[agrupados].sum())
+        cores_das_fatias.append(COR_OUTROS)
 
     # Percentual dentro da fatia só se ela tiver pelo menos 3%
     def rotulo_da_fatia(percentual):
@@ -149,8 +177,8 @@ def grafico_pizza(df):
 
     fig, ax = plt.subplots(figsize=(10, 6))
     fatias, _, textos = ax.pie(
-        contagem.values,
-        colors=[cores[r] for r in remetentes],
+        valores,
+        colors=cores_das_fatias,
         autopct=rotulo_da_fatia,
         pctdistance=0.78,
         startangle=90,
@@ -161,12 +189,26 @@ def grafico_pizza(df):
         texto.set_color(FUNDO_FIGURA)  # texto escuro sobre as fatias claras
         texto.set_fontweight("bold")
 
-    # Legenda com todos os remetentes: "Nome - 43,6 % (434)"
+    # Legenda com todos os remetentes e o percentual exato: "Nome - 43,6 % (434)".
+    # Os agrupados aparecem embaixo de "Outros", sem quadrado de cor.
+    marcadores = []
     legendas = []
-    for nome, quantidade in contagem.items():
+    for nome, fatia in zip(principais, fatias):
+        percentual = f"{contagem[nome] / total * 100:.1f}".replace(".", ",")
+        marcadores.append(fatia)
+        legendas.append(f"{nome} - {percentual} % ({contagem[nome]})")
+
+    if agrupados:
+        quantidade = contagem[agrupados].sum()
         percentual = f"{quantidade / total * 100:.1f}".replace(".", ",")
-        legendas.append(f"{nome} - {percentual} % ({quantidade})")
-    ax.legend(fatias, legendas, title="Remetente", loc="center left", bbox_to_anchor=(1.0, 0.5))
+        marcadores.append(fatias[-1])
+        legendas.append(f"Outros - {percentual} % ({quantidade})")
+        for nome in agrupados:
+            percentual = f"{contagem[nome] / total * 100:.1f}".replace(".", ",")
+            marcadores.append(Patch(facecolor="none", edgecolor="none"))
+            legendas.append(f"    {nome} - {percentual} % ({contagem[nome]})")
+
+    ax.legend(marcadores, legendas, title="Remetente", loc="center left", bbox_to_anchor=(1.0, 0.5))
 
     ax.set_title(f"Percentual de mensagens por remetente (total: {total})")
     ax.axis("equal")
