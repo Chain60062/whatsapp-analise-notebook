@@ -49,12 +49,14 @@ pip install -r requirements-dev.txt
 jupyter lab
 ```
 
-Abra [`analise_whatsapp.ipynb`](analise_whatsapp.ipynb) e use **Run → Run All Cells**. O notebook lê `dados/chat.txt`, a conversa exportada do grupo. Esse arquivo não está no repositório: coloque a sua exportação nesse caminho ou troque a variável `CAMINHO` para [`dados/exemplo_anonimizado.txt`](dados/exemplo_anonimizado.txt). Para analisar outra conversa:
+Abra [`analise_whatsapp.ipynb`](analise_whatsapp.ipynb) e use **Run → Run All Cells**. O notebook lê `dados/chat.txt`, a conversa exportada do grupo. Esse arquivo não está no repositório: coloque a sua exportação nesse caminho ou troque a variável `CAMINHO`. Para analisar outra conversa:
 
-- clique em **Carregar .txt** (seção 1) e escolha o arquivo: a tabela e o painel interativo são atualizados; ou
-- troque a variável `CAMINHO` e rode tudo de novo (atualiza também as seções 4 a 8).
+- clique em **Carregar .txt** (seção 1) e escolha o arquivo: todas as seções são atualizadas; ou
+- troque a variável `CAMINHO` e rode tudo de novo.
 
-O notebook está salvo **com as saídas**, então dá para ver os resultados no GitHub sem executar nada. O painel interativo (ipywidgets) só aparece com um kernel rodando.
+O remetente do histórico (seção 5) e do gráfico do histórico (seção 6) e o agrupamento do gráfico de linhas (seção 8) são escolhidos em listas, sem alterar código.
+
+O notebook está salvo **com as saídas**, então dá para ver os resultados no GitHub sem executar nada (com a opção padrão de cada lista). As listas e o painel interativo (ipywidgets) só funcionam com um kernel rodando.
 
 Os gráficos usam o seaborn com um tema escuro próprio (fundo grafite e 10 cores claras, uma por remetente). O gráfico de pizza é feito com o matplotlib, porque o seaborn não tem pizza, mas usa o mesmo tema e as mesmas cores. As tabelas seguem o tema do JupyterLab: para deixar tudo escuro, use **Settings → Theme → JupyterLab Dark**.
 
@@ -71,7 +73,7 @@ pytest
 
 O leitor aceita os dois formatos (iPhone `[M/D/AA, H:MM:SS PM] Nome: texto` e Android `DD/MM/AAAA HH:MM - Nome: texto`) e descobre sozinho se a data está em dia/mês ou mês/dia.
 
-> **Privacidade:** a conversa real tem números de telefone e conteúdo pessoal. O `.gitignore` ignora `dados/*.txt` (com exceção do exemplo anonimizado), mas as saídas salvas no notebook mostram as mensagens da conversa analisada.
+> **Privacidade:** a conversa real tem números de telefone e conteúdo pessoal. O `.gitignore` ignora `dados/*.txt`, mas as saídas salvas no notebook mostram as mensagens da conversa analisada.
 
 ## O que o notebook faz
 
@@ -102,7 +104,7 @@ whatsapp-analise/
 │   ├── analises.py              # tabelas (R4, R5) e contagens por período
 │   ├── graficos.py              # gráficos seaborn e tema escuro (R6, R7, R8)
 │   └── interface.py             # painel ipywidgets
-├── dados/exemplo_anonimizado.txt
+├── dados/                       # coloque aqui o chat.txt (não versionado)
 ├── docs/img/                    # prints dos gráficos usados neste README
 └── tests/
     ├── test_parser.py           # leitura e análises
@@ -111,7 +113,7 @@ whatsapp-analise/
 
 ## Gráficos (conversa de exemplo)
 
-Os prints abaixo usam a conversa de exemplo anonimizada. Ela foi gerada a partir de uma conversa real: os horários e a quantidade de mensagens de cada pessoa foram mantidos, mas os nomes, os números e todo o texto das mensagens foram trocados.
+Os prints abaixo usam uma versão anonimizada da conversa: os horários e a quantidade de mensagens de cada pessoa foram mantidos, mas os nomes e os números foram trocados.
 
 **R6 — mensagens por dia de um remetente**
 

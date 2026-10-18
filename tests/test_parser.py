@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pandas as pd
 import pytest
 
@@ -11,8 +9,6 @@ from whatsapp_analise import (
     mensagens_por_periodo,
     resumo_conversas,
 )
-
-EXEMPLO = Path(__file__).resolve().parent.parent / "dados" / "exemplo_anonimizado.txt"
 
 AVISO = (
     "As mensagens e as ligações são protegidas com a criptografia de ponta a ponta "
@@ -186,13 +182,6 @@ def test_resumo_ordenado(df):
     assert resumo["total_mensagens"].is_monotonic_decreasing
     assert resumo["percentual"].sum() == pytest.approx(100, abs=0.5)
     assert resumo.index.tolist() == [1, 2, 3]
-
-
-def test_resumo_exemplo():
-    resumo = resumo_conversas(ler_conversa(EXEMPLO).df)
-    assert len(resumo) == 10
-    assert resumo["total_mensagens"].sum() == 996
-    assert resumo.iloc[0]["total_mensagens"] == 434
 
 
 def test_resumo_nao_altera_entrada(df):
