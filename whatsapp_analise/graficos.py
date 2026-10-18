@@ -1,117 +1,207 @@
-"""Gráficos (R6, R7, R8). Cada função devolve uma ``Figure`` sem chamar ``plt.show()``."""
+"""Gráficos com seaborn em tema escuro (R6, R7, R8).
 
-from __future__ import annotations
+Cada função devolve uma Figure do matplotlib, sem chamar plt.show().
+"""
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import pandas as pd
-from matplotlib.figure import Figure
+import seaborn as sns
 
-from .analises import FREQUENCIAS, listar_remetentes, mensagens_por_dia, mensagens_por_periodo
+from .analises import FREQUENCIAS, listar_remetentes, mensagens_por_periodo
 
-FORMATO_DATA = mdates.DateFormatter("%d/%m/%y")
-LIMIAR_AUTOPCT = 3.0  # % mínimo para escrever o percentual dentro da fatia
+# ---------------------------------------------------------------------------
+# Tema escuro "grafite"
+# ---------------------------------------------------------------------------
+FUNDO_FIGURA = "#1E1F24"
+FUNDO_GRAFICO = "#26282E"
+TEXTO = "#E6E6E6"
+TEXTO_SECUNDARIO = "#A9ADB7"
+GRADE = "#3A3D45"
+
+# Uma cor por remetente, na ordem do resumo (mais ativo primeiro).
+# Todas têm contraste de pelo menos 5:1 com o fundo do gráfico, e cada cor é
+# bem diferente da vizinha, inclusive para quem tem daltonismo.
+CORES = [
+    "#5AA9F0",  # azul
+    "#FFA894",  # coral
+    "#E86FA8",  # rosa
+    "#E8C547",  # amarelo
+    "#3FC5D6",  # ciano
+    "#F08C3A",  # laranja
+    "#C4B0FF",  # lilás
+    "#4CC38A",  # verde
+    "#DADDE3",  # cinza-claro
+    "#86B83A",  # verde-limão
+]
+
+sns.set_theme(
+    style="darkgrid",
+    palette=CORES,
+    rc={
+        "figure.facecolor": FUNDO_FIGURA,
+        "savefig.facecolor": FUNDO_FIGURA,
+        "axes.facecolor": FUNDO_GRAFICO,
+        "axes.edgecolor": GRADE,
+        "axes.labelcolor": TEXTO,
+        "axes.titlecolor": TEXTO,
+        "axes.titleweight": "bold",
+        "grid.color": GRADE,
+        "text.color": TEXTO,
+        "xtick.color": TEXTO_SECUNDARIO,
+        "ytick.color": TEXTO_SECUNDARIO,
+        "legend.facecolor": FUNDO_GRAFICO,
+        "legend.edgecolor": GRADE,
+        "legend.labelcolor": TEXTO,
+    },
+)
 
 
-def paleta_remetentes(remetentes: list[str]) -> dict[str, tuple]:
-    """Cor fixa por remetente, na ordem recebida (use a ordem do resumo)."""
-    n = len(remetentes)
-    if n <= 10:
-        cores = plt.get_cmap("tab10").colors[:n]
-    elif n <= 20:
-        cores = plt.get_cmap("tab20").colors[:n]
-    else:
-        turbo = plt.get_cmap("turbo")
-        cores = [turbo(0.05 + 0.9 * i / (n - 1)) for i in range(n)]
-    return {r: tuple(c) for r, c in zip(remetentes, cores)}
-
-
-def _formatar_eixo_datas(ax) -> None:
-    ax.xaxis.set_major_formatter(FORMATO_DATA)
-    for rotulo in ax.get_xticklabels():
-        rotulo.set_rotation(45)
-        rotulo.set_horizontalalignment("right")
-
-
-def grafico_historico_remetente(df: pd.DataFrame, remetente: str | None = None) -> Figure:
-    """R6 — mensagens por dia de um remetente ou, com ``None``, de todos (small multiples)."""
+def cores_dos_remetentes(df):
+    """Dicionário remetente -> cor. O mesmo remetente tem a mesma cor em todos os gráficos."""
     remetentes = listar_remetentes(df)
-    cores = paleta_remetentes(remetentes)
+    if len(remetentes) <= len(CORES):
+        cores = CORES
+    else:
+        cores = sns.color_palette("husl", len(remetentes))
+    return dict(zip(remetentes, cores))
+
+
+def grafico_historico_remetente(df, remetente=None):
+    """R6 - histograma de mensagens por dia.
+
+    Com um remetente: um gráfico só. Com remetente=None: um gráfico por remetente.
+    """
+    cores = cores_dos_remetentes(df)
+
+    # Uma barra por dia, cobrindo a conversa inteira
+    inicio = mdates.date2num(df["data"].min())
+    fim = mdates.date2num(df["data"].max() + pd.Timedelta(days=1))
 
     if remetente is not None:
-        serie = mensagens_por_dia(df, remetente)
+        mensagens = df[df["remetente"] == remetente]
+
         fig, ax = plt.subplots(figsize=(11, 4))
-        ax.bar(serie.index, serie.to_numpy(), width=1.0, color=cores[remetente])
-        ax.set_title(f"Mensagens por dia — {remetente}")
+        sns.histplot(
+            data=mensagens,
+            x="data",
+            binwidth=1,
+            binrange=(inicio, fim),
+            color=cores[remetente],
+            edgecolor=FUNDO_GRAFICO,
+            alpha=1,
+            ax=ax,
+        )
+        ax.set_title(f"Mensagens por dia - {remetente}")
         ax.set_xlabel("Data")
         ax.set_ylabel("Quantidade de mensagens")
-        ax.set_xlim(serie.index.min() - pd.Timedelta(days=1), serie.index.max() + pd.Timedelta(days=1))
-        _formatar_eixo_datas(ax)
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m/%y"))
+        plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
         fig.tight_layout()
         return fig
 
-    n = len(remetentes)
-    fig, eixos = plt.subplots(n, 1, figsize=(11, max(1.6 * n, 3)), sharex=True, squeeze=False)
-    for ax, nome in zip(eixos[:, 0], remetentes):
-        serie = mensagens_por_dia(df, nome)
-        ax.bar(serie.index, serie.to_numpy(), width=1.0, color=cores[nome])
-        ax.set_title(f"{nome} ({int(serie.sum())})", fontsize=9, loc="left")
-        ax.tick_params(axis="y", labelsize=8)
-    ultimo = eixos[-1, 0]
-    ultimo.set_xlabel("Data")
-    _formatar_eixo_datas(ultimo)
-    fig.suptitle("Mensagens por dia — todos os remetentes")
-    fig.supylabel("Quantidade de mensagens")
-    fig.tight_layout()
-    return fig
+    # Todos os remetentes: small multiples, um embaixo do outro, mesmo eixo X
+    remetentes = listar_remetentes(df)
+    grade = sns.displot(
+        data=df,
+        x="data",
+        row="remetente",
+        row_order=remetentes,
+        hue="remetente",
+        hue_order=remetentes,
+        palette=cores,
+        binwidth=1,
+        binrange=(inicio, fim),
+        edgecolor=FUNDO_GRAFICO,
+        alpha=1,
+        legend=False,
+        height=1.6,
+        aspect=7,
+        facet_kws={"sharey": False},
+    )
+    grade.set_titles(row_template="{row_name}")
+    grade.set_axis_labels("Data", "Mensagens")
+    for ax in grade.axes.flat:
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m/%y"))
+    plt.setp(grade.axes[-1, 0].get_xticklabels(), rotation=45, ha="right")
+    grade.figure.suptitle("Mensagens por dia - todos os remetentes", fontweight="bold")
+    grade.figure.tight_layout()
+    return grade.figure
 
 
-def _numero_br(valor: float) -> str:
-    return f"{valor:.1f}".replace(".", ",")
+def grafico_pizza(df):
+    """R7 - percentual de mensagens de cada remetente.
 
-
-def grafico_pizza(df: pd.DataFrame) -> Figure:
-    """R7 — percentual de mensagens de cada remetente."""
+    O seaborn não tem gráfico de pizza, então este usa o matplotlib com o
+    mesmo tema e as mesmas cores dos outros gráficos.
+    """
+    cores = cores_dos_remetentes(df)
     contagem = df["remetente"].value_counts()
     remetentes = listar_remetentes(df)
-    contagem = contagem.reindex(remetentes)
-    cores = paleta_remetentes(remetentes)
+    contagem = contagem[remetentes]  # do maior para o menor
     total = contagem.sum()
 
+    # Percentual dentro da fatia só se ela tiver pelo menos 3%
+    def rotulo_da_fatia(percentual):
+        if percentual >= 3:
+            return f"{percentual:.1f} %".replace(".", ",")
+        return ""
+
     fig, ax = plt.subplots(figsize=(10, 6))
-    fatias, _, _ = ax.pie(
-        contagem.to_numpy(),
+    fatias, _, textos = ax.pie(
+        contagem.values,
         colors=[cores[r] for r in remetentes],
+        autopct=rotulo_da_fatia,
+        pctdistance=0.78,
         startangle=90,
         counterclock=False,
-        autopct=lambda p: f"{_numero_br(p)} %" if p >= LIMIAR_AUTOPCT else "",
-        pctdistance=0.75,
-        wedgeprops={"edgecolor": "white", "linewidth": 1},
+        wedgeprops={"edgecolor": FUNDO_FIGURA, "linewidth": 2},
     )
-    rotulos = [
-        f"{nome} — {_numero_br(qtd / total * 100)} % ({qtd})" for nome, qtd in contagem.items()
-    ]
-    ax.legend(fatias, rotulos, title="Remetente", loc="center left", bbox_to_anchor=(1.0, 0.5))
+    for texto in textos:
+        texto.set_color(FUNDO_FIGURA)  # texto escuro sobre as fatias claras
+        texto.set_fontweight("bold")
+
+    # Legenda com todos os remetentes: "Nome - 43,6 % (434)"
+    legendas = []
+    for nome, quantidade in contagem.items():
+        percentual = f"{quantidade / total * 100:.1f}".replace(".", ",")
+        legendas.append(f"{nome} - {percentual} % ({quantidade})")
+    ax.legend(fatias, legendas, title="Remetente", loc="center left", bbox_to_anchor=(1.0, 0.5))
+
     ax.set_title(f"Percentual de mensagens por remetente (total: {total})")
     ax.axis("equal")
     fig.tight_layout()
     return fig
 
 
-def grafico_linhas(df: pd.DataFrame, freq: str = "D") -> Figure:
-    """R8 — mensagens ao longo do tempo, uma linha (e cor) por remetente."""
+def grafico_linhas(df, freq="D"):
+    """R8 - mensagens ao longo do tempo, uma linha (e uma cor) por remetente.
+
+    freq: "D" (dia), "W" (semana) ou "MS" (mês).
+    """
+    cores = cores_dos_remetentes(df)
     tabela = mensagens_por_periodo(df, freq)
-    cores = paleta_remetentes(list(tabela.columns))
+
+    # O seaborn prefere o formato "longo": uma linha por (data, remetente)
+    longo = tabela.reset_index().melt(id_vars="data", var_name="remetente", value_name="mensagens")
 
     fig, ax = plt.subplots(figsize=(12, 5))
-    for nome in tabela.columns:
-        ax.plot(tabela.index, tabela[nome].to_numpy(), label=nome, color=cores[nome],
-                linewidth=1.4, marker="o" if freq == "MS" else None, markersize=4)
-    ax.set_title(f"Mensagens ao longo do tempo por remetente (agrupado por {FREQUENCIAS[freq].lower()})")
+    sns.lineplot(
+        data=longo,
+        x="data",
+        y="mensagens",
+        hue="remetente",
+        hue_order=list(tabela.columns),
+        palette=cores,
+        linewidth=1.6,
+        marker="o" if freq == "MS" else None,
+        ax=ax,
+    )
+    ax.set_title(f"Mensagens ao longo do tempo por remetente (por {FREQUENCIAS[freq].lower()})")
     ax.set_xlabel("Data")
     ax.set_ylabel("Quantidade de mensagens")
-    ax.grid(alpha=0.3)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m/%y"))
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
     ax.legend(title="Remetente", bbox_to_anchor=(1.01, 1), loc="upper left")
-    _formatar_eixo_datas(ax)
     fig.tight_layout()
     return fig

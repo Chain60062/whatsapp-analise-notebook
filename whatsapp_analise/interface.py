@@ -1,157 +1,160 @@
-"""Painel interativo em ``ipywidgets`` para o notebook."""
-
-from __future__ import annotations
+"""Painel interativo (ipywidgets) usado no notebook."""
 
 import html
-from collections.abc import Callable
 
 import ipywidgets as widgets
 import matplotlib.pyplot as plt
 import pandas as pd
 from IPython.display import HTML, display
 
-from .analises import FREQUENCIAS, historico_remetente, listar_remetentes, resumo_conversas
+from .analises import historico_remetente, listar_remetentes, resumo_conversas
 from .graficos import grafico_historico_remetente, grafico_linhas, grafico_pizza
-from .parser import ResultadoLeitura, ler_conversa
-
-TODOS = "__todos__"
-ANALISES = [
-    ("Resumo", "resumo"),
-    ("Histórico", "historico"),
-    ("Gráf. histórico", "grafico_historico"),
-    ("Pizza", "pizza"),
-    ("Linhas", "linhas"),
-]
-_USA_REMETENTE = {"historico", "grafico_historico"}
+from .parser import ler_conversa
 
 
-def descrever_leitura(resultado: ResultadoLeitura) -> str:
-    """Resumo em texto do arquivo carregado (formato, totais, período)."""
+def descrever_leitura(resultado):
+    """Texto com o resumo do arquivo carregado."""
     df = resultado.df
-    nomes = {"ios": "iPhone", "android": "Android"}
-    ordem = "dia/mês" if resultado.dayfirst else "mês/dia"
-    linhas = [
-        f"Formato detectado: {nomes.get(resultado.formato, resultado.formato)} (datas em {ordem})",
-        f"Mensagens: {len(df)}",
-        f"Remetentes: {df['remetente'].nunique()}",
-    ]
-    if len(df):
+
+    if resultado.formato == "ios":
+        formato = "iPhone"
+    else:
+        formato = "Android"
+    if resultado.dayfirst:
+        ordem = "dia/mês"
+    else:
+        ordem = "mês/dia"
+
+    texto = f"Formato detectado: {formato} (datas em {ordem})\n"
+    texto += f"Mensagens: {len(df)}\n"
+    texto += f"Remetentes: {df['remetente'].nunique()}\n"
+    if len(df) > 0:
         inicio = df["data"].min().strftime("%d/%m/%Y")
         fim = df["data"].max().strftime("%d/%m/%Y")
-        linhas.append(f"Período: {inicio} a {fim}")
-    linhas.append(f"Mensagens do sistema ignoradas: {resultado.mensagens_sistema}")
-    if resultado.linhas_descartadas:
-        linhas.append(f"Linhas antes da 1ª mensagem descartadas: {resultado.linhas_descartadas}")
-    return "\n".join(linhas)
+        texto += f"Período: {inicio} a {fim}\n"
+    texto += f"Mensagens do sistema ignoradas: {resultado.mensagens_sistema}"
+    return texto
 
 
-def _erro(mensagem: str) -> None:
-    display(HTML(f'<div style="color:#b00020;font-weight:bold">⚠️ {html.escape(mensagem)}</div>'))
+def mostrar_erro(mensagem):
+    """Mensagem de erro amigável (sem traceback)."""
+    display(HTML(f'<p style="color:#E5484D;font-weight:bold">Erro: {html.escape(mensagem)}</p>'))
 
 
-def mostrar_figura(fig) -> None:
-    """Exibe a figura e a fecha, para não acumular figuras abertas."""
+def mostrar_figura(fig):
+    """Exibe a figura e fecha em seguida, para não acumular figuras abertas."""
     display(fig)
     plt.close(fig)
 
 
-def tabela_rolavel(df: pd.DataFrame, altura: str = "450px") -> HTML:
-    """Todas as linhas de ``df`` numa área de altura fixa com rolagem.
+def tabela_rolavel(df, altura="450px"):
+    """Todas as linhas de df numa área com rolagem.
 
-    É HTML puro (e não um ``widgets.Output``) para que a tabela continue
-    visível no notebook salvo, inclusive no GitHub/nbviewer, onde widgets não
-    são renderizados.
+    É HTML simples (e não um widget) para a tabela continuar visível no
+    notebook salvo, inclusive no GitHub.
     """
-    texto = df.select_dtypes(include="str").columns
-    escapado = df.assign(
-        **{c: df[c].map(lambda s: html.escape(s).replace("\n", "<br>")) for c in texto}
-    )
-    tabela = escapado.to_html(max_rows=None, border=0, classes="dataframe", escape=False)
-    return HTML(
-        f'<div style="max-height:{altura};overflow:auto;border:1px solid #ddd">{tabela}</div>'
-    )
+    df = df.copy()
+    for coluna in ["remetente", "mensagem"]:
+        if coluna in df.columns:
+            # Escapa o texto e mostra as quebras de linha da mensagem
+            df[coluna] = df[coluna].map(lambda s: html.escape(s).replace("\n", "<br>"))
+
+    tabela = df.to_html(escape=False, border=0)
+    return HTML(f'<div style="max-height:{altura};overflow:auto">{tabela}</div>')
 
 
-def criar_upload(callback: Callable[[ResultadoLeitura], None]) -> widgets.Widget:
-    """Botão de upload do ``.txt``; chama ``callback`` com o resultado da leitura."""
-    upload = widgets.FileUpload(accept=".txt", multiple=False, description="Carregar .txt")
-    status = widgets.Output()
+def criar_upload(callback):
+    """Botão para carregar o .txt. Chama callback(resultado) após ler o arquivo."""
+    botao = widgets.FileUpload(accept=".txt", multiple=False, description="Carregar .txt")
+    saida = widgets.Output()
 
-    def ao_enviar(mudanca) -> None:
+    def ao_enviar(mudanca):
         arquivos = mudanca["new"]
         if not arquivos:
             return
         arquivo = arquivos[0]
-        status.clear_output(wait=True)
-        with status:
+
+        saida.clear_output(wait=True)
+        with saida:
             try:
+                # No ipywidgets 8 o conteúdo vem como memoryview
                 resultado = ler_conversa(bytes(arquivo["content"]))
-            except ValueError as exc:
-                _erro(f"{arquivo['name']}: {exc}")
+            except ValueError as erro:
+                mostrar_erro(f"{arquivo['name']}: {erro}")
                 return
             print(f"Arquivo: {arquivo['name']}")
             print(descrever_leitura(resultado))
         callback(resultado)
 
-    upload.observe(ao_enviar, names="value")
-    return widgets.VBox([upload, status])
+    botao.observe(ao_enviar, names="value")
+    return widgets.VBox([botao, saida])
 
 
-def criar_painel(df: pd.DataFrame) -> widgets.Widget:
-    """Painel com as cinco análises (R4–R8)."""
+def criar_painel(df):
+    """Painel com as cinco análises (R4 a R8)."""
     remetentes = listar_remetentes(df)
 
-    analise = widgets.ToggleButtons(options=ANALISES, value="resumo", description="Análise:")
-    remetente = widgets.Dropdown(description="Remetente:")
-    freq = widgets.Dropdown(
-        options=[(rotulo, chave) for chave, rotulo in FREQUENCIAS.items()],
-        value="D",
+    analise = widgets.ToggleButtons(
+        options=["Resumo", "Histórico", "Gráf. histórico", "Pizza", "Linhas"],
+        description="Análise:",
+    )
+    remetente = widgets.Dropdown(options=remetentes, description="Remetente:")
+    agrupar = widgets.Dropdown(
+        options=[("Dia", "D"), ("Semana", "W"), ("Mês", "MS")],
         description="Agrupar por:",
     )
-    executar = widgets.Button(description="Executar", button_style="primary", icon="play")
+    executar = widgets.Button(description="Executar", button_style="primary")
     saida = widgets.Output(layout=widgets.Layout(max_height="700px", overflow="auto"))
 
-    def atualizar_controles(_=None) -> None:
+    def ao_trocar_analise(mudanca=None):
         escolhida = analise.value
-        atual = remetente.value
-        opcoes = [(r, r) for r in remetentes]
-        if escolhida == "grafico_historico":
-            opcoes = [("Todos", TODOS), *opcoes]
-        remetente.options = opcoes
-        valores = [v for _, v in opcoes]
-        if atual in valores:
-            remetente.value = atual
-        elif valores:
-            remetente.value = valores[0]
-        remetente.layout.display = None if escolhida in _USA_REMETENTE else "none"
-        freq.layout.display = None if escolhida == "linhas" else "none"
 
-    def rodar(_=None) -> None:
+        # O gráfico do histórico aceita "Todos"; o histórico em tabela não
+        selecionado = remetente.value
+        if escolhida == "Gráf. histórico":
+            remetente.options = ["Todos"] + remetentes
+        else:
+            remetente.options = remetentes
+        if selecionado in remetente.options:
+            remetente.value = selecionado
+
+        # Esconde os controles que não se aplicam
+        if escolhida in ["Histórico", "Gráf. histórico"]:
+            remetente.layout.display = None
+        else:
+            remetente.layout.display = "none"
+        if escolhida == "Linhas":
+            agrupar.layout.display = None
+        else:
+            agrupar.layout.display = "none"
+
+    def ao_executar(botao):
         saida.clear_output(wait=True)
         with saida:
             try:
-                escolhida = analise.value
                 if df.empty:
-                    _erro("A conversa não tem mensagens para analisar.")
-                elif escolhida == "resumo":
+                    mostrar_erro("A conversa não tem mensagens para analisar.")
+                elif analise.value == "Resumo":
                     display(resumo_conversas(df))
-                elif escolhida == "historico":
+                elif analise.value == "Histórico":
                     with pd.option_context("display.max_rows", None):
                         display(historico_remetente(df, remetente.value))
-                elif escolhida == "grafico_historico":
-                    nome = None if remetente.value == TODOS else remetente.value
-                    mostrar_figura(grafico_historico_remetente(df, nome))
-                elif escolhida == "pizza":
+                elif analise.value == "Gráf. histórico":
+                    if remetente.value == "Todos":
+                        mostrar_figura(grafico_historico_remetente(df))
+                    else:
+                        mostrar_figura(grafico_historico_remetente(df, remetente.value))
+                elif analise.value == "Pizza":
                     mostrar_figura(grafico_pizza(df))
-                elif escolhida == "linhas":
-                    mostrar_figura(grafico_linhas(df, freq.value))
-            except KeyError as exc:
-                _erro(str(exc.args[0]) if exc.args else str(exc))
-            except Exception as exc:  # o painel não deve mostrar traceback
-                _erro(f"Não foi possível executar a análise: {exc}")
+                elif analise.value == "Linhas":
+                    mostrar_figura(grafico_linhas(df, agrupar.value))
+            except KeyError as erro:
+                mostrar_erro(erro.args[0])
+            except Exception as erro:
+                mostrar_erro(str(erro))
 
-    analise.observe(atualizar_controles, names="value")
-    executar.on_click(rodar)
-    atualizar_controles()
+    analise.observe(ao_trocar_analise, names="value")
+    executar.on_click(ao_executar)
+    ao_trocar_analise()
 
-    return widgets.VBox([analise, remetente, freq, executar, saida])
+    return widgets.VBox([analise, remetente, agrupar, executar, saida])

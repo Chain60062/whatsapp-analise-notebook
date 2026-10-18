@@ -9,7 +9,7 @@ Trabalho de Data Science (A2). Notebook Jupyter que lê a exportação `.txt` de
 ## Requisitos
 
 - **Python 3.14** (3.12 e 3.13 também funcionam; o mínimo é 3.12 por causa do NumPy 2.5).
-- Dependências fixadas em [`requirements.txt`](requirements.txt): pandas 3.0.6, matplotlib 3.11.2, ipywidgets 8.1.9, jupyterlab 4.6.4 e ipykernel 7.4.0. O pytest 9.1.1 fica em [`requirements-dev.txt`](requirements-dev.txt).
+- Dependências fixadas em [`requirements.txt`](requirements.txt): pandas 3.0.6, matplotlib 3.11.2, seaborn 0.13.2, ipywidgets 8.1.9, jupyterlab 4.6.4 e ipykernel 7.4.0. O pytest 9.1.1 fica em [`requirements-dev.txt`](requirements-dev.txt).
 
 ## Instalação
 
@@ -49,12 +49,14 @@ pip install -r requirements-dev.txt
 jupyter lab
 ```
 
-Abra [`analise_whatsapp.ipynb`](analise_whatsapp.ipynb) e use **Run → Run All Cells**. Por padrão o notebook lê [`dados/exemplo_anonimizado.txt`](dados/exemplo_anonimizado.txt). Para analisar outra conversa:
+Abra [`analise_whatsapp.ipynb`](analise_whatsapp.ipynb) e use **Run → Run All Cells**. O notebook lê `dados/chat.txt`, a conversa exportada do grupo. Esse arquivo não está no repositório: coloque a sua exportação nesse caminho ou troque a variável `CAMINHO` para [`dados/exemplo_anonimizado.txt`](dados/exemplo_anonimizado.txt). Para analisar outra conversa:
 
 - clique em **Carregar .txt** (seção 1) e escolha o arquivo: a tabela e o painel interativo são atualizados; ou
 - troque a variável `CAMINHO` e rode tudo de novo (atualiza também as seções 4 a 8).
 
 O notebook está salvo **com as saídas**, então dá para ver os resultados no GitHub sem executar nada. O painel interativo (ipywidgets) só aparece com um kernel rodando.
+
+Os gráficos usam o seaborn com um tema escuro próprio (fundo grafite e 10 cores claras, uma por remetente). O gráfico de pizza é feito com o matplotlib, porque o seaborn não tem pizza, mas usa o mesmo tema e as mesmas cores. As tabelas seguem o tema do JupyterLab: para deixar tudo escuro, use **Settings → Theme → JupyterLab Dark**.
 
 Para rodar os testes:
 
@@ -69,7 +71,7 @@ pytest
 
 O leitor aceita os dois formatos (iPhone `[M/D/AA, H:MM:SS PM] Nome: texto` e Android `DD/MM/AAAA HH:MM - Nome: texto`) e descobre sozinho se a data está em dia/mês ou mês/dia.
 
-> ⚠️ **Privacidade:** a conversa real tem números de telefone e conteúdo pessoal. Não versione o `.txt` real. O `.gitignore` já ignora `dados/*.txt`, com exceção do exemplo anonimizado.
+> **Privacidade:** a conversa real tem números de telefone e conteúdo pessoal. O `.gitignore` ignora `dados/*.txt` (com exceção do exemplo anonimizado), mas as saídas salvas no notebook mostram as mensagens da conversa analisada.
 
 ## O que o notebook faz
 
@@ -98,16 +100,18 @@ whatsapp-analise/
 ├── whatsapp_analise/
 │   ├── parser.py                # .txt -> DataFrame
 │   ├── analises.py              # tabelas (R4, R5) e contagens por período
-│   ├── graficos.py              # gráficos matplotlib (R6, R7, R8)
+│   ├── graficos.py              # gráficos seaborn e tema escuro (R6, R7, R8)
 │   └── interface.py             # painel ipywidgets
 ├── dados/exemplo_anonimizado.txt
 ├── docs/img/                    # prints dos gráficos usados neste README
-└── tests/test_parser.py
+└── tests/
+    ├── test_parser.py           # leitura e análises
+    └── test_graficos.py         # gráficos
 ```
 
 ## Gráficos (conversa de exemplo)
 
-O exemplo foi gerado a partir de uma conversa real: os horários e a quantidade de mensagens de cada pessoa foram mantidos, mas os nomes, os números e todo o texto das mensagens foram trocados.
+Os prints abaixo usam a conversa de exemplo anonimizada. Ela foi gerada a partir de uma conversa real: os horários e a quantidade de mensagens de cada pessoa foram mantidos, mas os nomes, os números e todo o texto das mensagens foram trocados.
 
 **R6 — mensagens por dia de um remetente**
 

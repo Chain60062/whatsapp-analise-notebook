@@ -283,8 +283,8 @@ valeu galera
 - DIA 17
 - PESSOA 2 DIRIGINDO
 [10/7/25, 12:14:21 PM] Pessoa 1: Enquete: CHURRASCO NO SÁBADO
-    - VOU 😎
-    - NÃO VOU 😢
+    - VOU
+    - NÃO VOU
 [10/7/25, 12:14:26 PM] +55 00 0000-0004: sério isso?
 [10/7/25, 12:14:29 PM] - *ENCONTRO DA TURMA*
  

@@ -1,6 +1,4 @@
-"""Leitura da exportação ``.txt`` do WhatsApp para um ``pandas.DataFrame``."""
-
-from __future__ import annotations
+"""Leitura da exportação .txt do WhatsApp para um pandas.DataFrame."""
 
 import re
 from dataclasses import dataclass
@@ -8,140 +6,119 @@ from pathlib import Path
 
 import pandas as pd
 
+# Início de mensagem no iPhone: [9/29/25, 6:08:52 PM] resto
 RE_IOS = re.compile(
     r"^\[(?P<data>\d{1,2}/\d{1,2}/\d{2,4}),\s*"
     r"(?P<hora>\d{1,2}:\d{2}(?::\d{2})?(?:\s?[APap]\.?\s?[Mm]\.?)?)\]\s"
     r"(?P<resto>.*)$"
 )
+
+# Início de mensagem no Android: 29/09/2025 18:08 - resto
 RE_ANDROID = re.compile(
     r"^(?P<data>\d{1,2}/\d{1,2}/\d{2,4}),?\s"
     r"(?P<hora>\d{1,2}:\d{2}(?::\d{2})?(?:\s?[APap]\.?\s?[Mm]\.?)?)\s-\s"
     r"(?P<resto>.*)$"
 )
+
+# "Remetente: mensagem" (divide no primeiro ": ")
 RE_REMETENTE = re.compile(r"^(?P<remetente>[^:]+?):\s(?P<mensagem>.*)$", re.DOTALL)
+
+# AM/PM no fim da hora, em qualquer grafia: "PM", "pm", "p.m.", "p. m."
 RE_AMPM = re.compile(r"\s?([APap])\.?\s?[Mm]\.?$")
-
-# Caracteres invisíveis que algumas exportações inserem.
-_REMOVER = dict.fromkeys(map(ord, "‎‏﻿"))
-_TROCAR_POR_ESPACO = dict.fromkeys(map(ord, "  "), " ")
-_TABELA_NORMALIZACAO = {**_REMOVER, **_TROCAR_POR_ESPACO}
-
-COLUNAS = ["data", "hora", "remetente", "mensagem"]
 
 
 @dataclass
 class ResultadoLeitura:
-    df: pd.DataFrame  # 4 colunas: data, hora, remetente, mensagem
-    formato: str  # "ios" | "android"
-    dayfirst: bool
-    mensagens_sistema: int  # quantas foram descartadas
-    linhas_descartadas: int  # texto antes da 1ª mensagem
+    df: pd.DataFrame  # colunas: data, hora, remetente, mensagem
+    formato: str  # "ios" ou "android"
+    dayfirst: bool  # True = dia/mês, False = mês/dia
+    mensagens_sistema: int  # mensagens sem remetente que foram descartadas
+    linhas_descartadas: int  # texto antes da primeira mensagem
 
 
-def _ler_texto(origem: str | Path | bytes) -> str:
+def ler_conversa(origem, dayfirst=None):
+    """Lê uma exportação .txt do WhatsApp (iPhone ou Android, sem mídia).
+
+    origem: caminho do arquivo ou os bytes do arquivo (vindos do upload).
+    dayfirst: força a ordem da data (True = dia/mês). Se None, é detectada.
+    """
+    # 1. Ler o arquivo (utf-8-sig remove o BOM; latin-1 é o plano B)
     if isinstance(origem, (bytes, bytearray, memoryview)):
         dados = bytes(origem)
     else:
         dados = Path(origem).read_bytes()
     try:
-        return dados.decode("utf-8-sig")
+        texto = dados.decode("utf-8-sig")
     except UnicodeDecodeError:
-        return dados.decode("latin-1")
+        texto = dados.decode("latin-1")
 
+    # 2. Remover caracteres invisíveis e trocar espaços especiais por espaço comum
+    texto = texto.replace("‎", "").replace("‏", "").replace("﻿", "")
+    texto = texto.replace(" ", " ").replace(" ", " ")
 
-def _normalizar(texto: str) -> str:
-    return texto.translate(_TABELA_NORMALIZACAO)
-
-
-def _detectar_dayfirst(datas: list[str], tem_ampm: bool) -> bool:
-    campos = [d.split("/") for d in datas]
-    if any(int(c[0]) > 12 for c in campos):
-        return True
-    if any(int(c[1]) > 12 for c in campos):
-        return False
-    return not tem_ampm
-
-
-def _padronizar_hora(hora: str) -> str:
-    """``6:08:52 p.m.`` -> ``6:08:52 PM``."""
-    hora = hora.strip()
-    m = RE_AMPM.search(hora)
-    if m:
-        hora = hora[: m.start()].strip() + f" {m.group(1).upper()}M"
-    return hora
-
-
-def _formato_datahora(
-    datas: pd.Series, horas: pd.Series, dayfirst: bool
-) -> tuple[str, bool]:
-    """Formato explícito para ``pd.to_datetime`` e se a hora tem segundos."""
-    ano = "%Y" if len(datas.iloc[0].split("/")[2]) == 4 else "%y"
-    fmt_data = f"%d/%m/{ano}" if dayfirst else f"%m/%d/{ano}"
-    tem_segundos = horas.iloc[0].split(" ")[0].count(":") == 2
-    tem_ampm = horas.iloc[0].endswith("M")
-    if tem_ampm:
-        fmt_hora = "%I:%M:%S %p" if tem_segundos else "%I:%M %p"
-    else:
-        fmt_hora = "%H:%M:%S" if tem_segundos else "%H:%M"
-    return f"{fmt_data} {fmt_hora}", tem_segundos
-
-
-def ler_conversa(
-    origem: str | Path | bytes, dayfirst: bool | None = None
-) -> ResultadoLeitura:
-    """Lê uma exportação ``.txt`` do WhatsApp (iPhone ou Android, sem mídia).
-
-    ``origem`` pode ser um caminho ou os ``bytes`` do arquivo. ``dayfirst``
-    força a ordem dia/mês; se ``None``, é detectada a partir das datas.
-    """
-    linhas = _normalizar(_ler_texto(origem)).splitlines()
-
-    registros: list[dict[str, str]] = []
-    formato: str | None = None
+    # 3. Juntar as linhas em mensagens. Uma linha que não começa com data/hora
+    #    continua a mensagem anterior.
+    registros = []
+    formato = None
     linhas_descartadas = 0
 
-    for linha in linhas:
-        m = None
+    for linha in texto.splitlines():
+        encontrado = None
         if formato in (None, "ios"):
-            m = RE_IOS.match(linha)
-            if m and formato is None:
+            encontrado = RE_IOS.match(linha)
+            if encontrado and formato is None:
                 formato = "ios"
-        if m is None and formato in (None, "android"):
-            m = RE_ANDROID.match(linha)
-            if m and formato is None:
+        if encontrado is None and formato in (None, "android"):
+            encontrado = RE_ANDROID.match(linha)
+            if encontrado and formato is None:
                 formato = "android"
 
-        if m:
-            registros.append(m.groupdict())
+        if encontrado:
+            registros.append(encontrado.groupdict())
         elif registros:
             registros[-1]["resto"] += "\n" + linha
         else:
-            linhas_descartadas += 1
+            linhas_descartadas += 1  # cabeçalho ou aviso de criptografia
 
     if not registros:
         raise ValueError("Arquivo não reconhecido como exportação do WhatsApp")
 
-    mensagens: list[dict[str, str]] = []
+    # 4. Separar remetente e mensagem. Sem remetente = mensagem do sistema.
+    mensagens = []
     mensagens_sistema = 0
-    for reg in registros:
-        resto = reg["resto"]
-        m = None if resto.startswith("- ") else RE_REMETENTE.match(resto)
-        if m is None:
+    for registro in registros:
+        resto = registro["resto"]
+        encontrado = RE_REMETENTE.match(resto)
+        if resto.startswith("- ") or encontrado is None:
             mensagens_sistema += 1
             continue
+
+        # Padroniza AM/PM: "6:08:52 p. m." -> "6:08:52 PM"
+        hora = registro["hora"].strip()
+        ampm = RE_AMPM.search(hora)
+        if ampm:
+            hora = hora[: ampm.start()].strip() + " " + ampm.group(1).upper() + "M"
+
         mensagens.append(
             {
-                "data": reg["data"],
-                "hora": _padronizar_hora(reg["hora"]),
-                "remetente": m.group("remetente").strip(),
-                "mensagem": m.group("mensagem").rstrip(),
+                "data": registro["data"],
+                "hora": hora,
+                "remetente": encontrado.group("remetente").strip(),
+                "mensagem": encontrado.group("mensagem").rstrip(),
             }
         )
 
+    # 5. Descobrir se a data é dia/mês ou mês/dia olhando todas as datas
+    tem_ampm = RE_AMPM.search(registros[0]["hora"]) is not None
     if dayfirst is None:
-        todas_datas = [r["data"] for r in registros]
-        tem_ampm = bool(RE_AMPM.search(registros[0]["hora"]))
-        dayfirst = _detectar_dayfirst(todas_datas, tem_ampm)
+        primeiros = [int(r["data"].split("/")[0]) for r in registros]
+        segundos = [int(r["data"].split("/")[1]) for r in registros]
+        if max(primeiros) > 12:
+            dayfirst = True
+        elif max(segundos) > 12:
+            dayfirst = False
+        else:
+            dayfirst = not tem_ampm  # AM/PM é padrão americano (mês/dia)
 
     if not mensagens:
         df = pd.DataFrame(
@@ -154,29 +131,35 @@ def ler_conversa(
         )
         return ResultadoLeitura(df, formato, dayfirst, mensagens_sistema, linhas_descartadas)
 
-    bruto = pd.DataFrame(mensagens)
-    fmt, tem_segundos = _formato_datahora(bruto["data"], bruto["hora"], dayfirst)
-    instante = pd.to_datetime(bruto["data"] + " " + bruto["hora"], format=fmt)
+    # 6. Converter data e hora com um formato explícito
+    df = pd.DataFrame(mensagens)
 
-    df = (
-        pd.DataFrame(
-            {
-                "data": instante.dt.normalize(),
-                "hora": instante.dt.strftime("%H:%M:%S" if tem_segundos else "%H:%M"),
-                "remetente": bruto["remetente"].astype("str"),
-                "mensagem": bruto["mensagem"].astype("str"),
-                "_instante": instante,
-            }
-        )
-        .sort_values("_instante", kind="stable")
-        .drop(columns="_instante")
-        .reset_index(drop=True)
+    ano_com_4_digitos = len(df.loc[0, "data"].split("/")[2]) == 4
+    ano = "%Y" if ano_com_4_digitos else "%y"
+    if dayfirst:
+        formato_data = f"%d/%m/{ano}"
+    else:
+        formato_data = f"%m/%d/{ano}"
+
+    tem_segundos = df.loc[0, "hora"].count(":") == 2
+    if tem_ampm and tem_segundos:
+        formato_hora = "%I:%M:%S %p"
+    elif tem_ampm:
+        formato_hora = "%I:%M %p"
+    elif tem_segundos:
+        formato_hora = "%H:%M:%S"
+    else:
+        formato_hora = "%H:%M"
+
+    data_hora = pd.to_datetime(
+        df["data"] + " " + df["hora"], format=f"{formato_data} {formato_hora}"
     )
 
-    return ResultadoLeitura(
-        df=df[COLUNAS],
-        formato=formato,
-        dayfirst=dayfirst,
-        mensagens_sistema=mensagens_sistema,
-        linhas_descartadas=linhas_descartadas,
-    )
+    # 7. Montar o DataFrame final em ordem cronológica
+    df["data"] = data_hora.dt.normalize()
+    df["hora"] = data_hora.dt.strftime("%H:%M:%S" if tem_segundos else "%H:%M")
+    df["data_hora"] = data_hora
+    df = df.sort_values("data_hora", kind="stable").reset_index(drop=True)
+    df = df[["data", "hora", "remetente", "mensagem"]]
+
+    return ResultadoLeitura(df, formato, dayfirst, mensagens_sistema, linhas_descartadas)
